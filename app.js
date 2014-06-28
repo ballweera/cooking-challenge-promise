@@ -12,35 +12,42 @@ app.controller('CookingChallengeController', function($scope, $q) {
 
   $scope.startChallenge = function() {
     $q.all([findIngredientBy(ICHIKO), findIngredientBy(ACHIO)])
-      .then(function(challengers) {
-        ichiko = challengers[0];
-        achio = challengers[1];
-
-        if (ichiko.ingredient == RARE_INGREDIENT && achio.ingredient == RARE_INGREDIENT) {
-          $scope.result = "Mr.Ichiko and President Achio drawn";
-        } else if (ichiko.ingredient == RARE_INGREDIENT && achio.ingredient != RARE_INGREDIENT) {
-          $scope.result = "Mr.Ichiko win";
-        } else if (achio.ingredient == RARE_INGREDIENT && ichiko.ingredient != RARE_INGREDIENT) {
-          $scope.result = "President Achio win";
-        } else {
-          $scope.result = "Both of challengers failed to find the ingredient";
-        }
-      }, function(loser) {
-        if (loser.challenger == ICHIKO) {
-          $scope.result = "President Achio win";
-        } else {
-          $scope.result = "Mr.Ichiko win";
-        }
-      });
+      .then(decidesWhoWins, decidesWinnerFromLoser);
   };
 
-  var findIngredientBy = function(challengerName) {
-    var deferred = $q.defer();
-    var challenger = initializeChallenger(challengerName);
+  function decidesWhoWins(challengers) {
+    var ichiko, achio;
+    ichiko = challengers[0];
+    achio = challengers[1];
 
-    useFirstCue(challenger)
-      .then(useSecondCue)
-      .then(useThirdCue)
+    if (ichiko.ingredient == RARE_INGREDIENT && achio.ingredient == RARE_INGREDIENT) {
+      $scope.result = "Mr.Ichiko and President Achio drawn";
+    } else if (ichiko.ingredient == RARE_INGREDIENT && achio.ingredient != RARE_INGREDIENT) {
+      $scope.result = "Mr.Ichiko win";
+    } else if (achio.ingredient == RARE_INGREDIENT && ichiko.ingredient != RARE_INGREDIENT) {
+      $scope.result = "President Achio win";
+    } else {
+      $scope.result = "Both of challengers failed to find the ingredient";
+    }
+  };
+
+  function decidesWinnerFromLoser(loser) {
+    if (loser.challenger == ICHIKO) {
+      $scope.result = "President Achio win";
+    } else {
+      $scope.result = "Mr.Ichiko win";
+    }
+  };
+
+  function findIngredientBy(challengerName) {
+    var deferred, challenger;
+    deferred = $q.defer();
+    challenger = new Challenger(challengerName);
+
+    $q.when(challenger)
+      .then(doQuestOnDay1)
+      .then(doQuestOnDay2)
+      .then(doQuestOnDay3)
       .then(function(challenger) {
           challenger.updatedAt = Date.now();
           deferred.resolve(challenger);
@@ -52,54 +59,60 @@ app.controller('CookingChallengeController', function($scope, $q) {
     return deferred.promise;
   };
 
-  var useFirstCue = function(challenger) {
-    var deferred = $q.defer();
-
-    challenger.firstCue = FIRST_CUE;
-    challenger.secondCue = SECOND_CUE;
-    challenger.updatedAt = Date.now();
-
-    deferred.resolve(challenger);
-
-    return deferred.promise;
+  function doQuestOnDay1(challenger) {
+    challenger.useFirst2Cues(FIRST_CUE, SECOND_CUE);
+    return challenger;
   };
 
-  var useSecondCue = function(challenger) {
-    var deferred = $q.defer();
-
-    challenger.thirdCue = THIRD_CUE;
-    challenger.updatedAt = Date.now();
-
-    deferred.resolve(challenger);
-
-    return deferred.promise;
+  function doQuestOnDay2(challenger) {
+    challenger.useThirdCue(THIRD_CUE);
+    return challenger;
   };
 
-  var useThirdCue = function(challenger) {
-    var deferred = $q.defer();
-
+  function doQuestOnDay3(challenger) {
+    var d = $q.defer();
     if (challenger.challengerName == ICHIKO) {
-
-      challenger.ingredient = RARE_INGREDIENT;
-      challenger.updatedAt = Date.now();
-      deferred.resolve(challenger);
+      challenger.findIngredient(RARE_INGREDIENT);
+      return challenger;
     } else {
-      challenger.updatedAt = Date.now();
-      deferred.reject(challenger);
+      challenger.admitDefeat();
+      d.reject(challenger);
     }
+    return d.promise;
+  };
 
-    return deferred.promise;
-  }
-
-  var initializeChallenger = function(challengerName) {
-    return {
-      challengerName: challengerName,
-      firstCue: "",
-      secondCue: "",
-      thirdCue: "",
-      ingredient: "",
-      createdAt: Date.now(),
-      updatedAt: Date.now()
-    };
-  }
 });
+
+function Challenger(name) {
+  this.challengerName = name;
+  this.firstCue = "";
+  this.secondCue = "";
+  this.thirdCue = "";
+  this.ingredient = "";
+  this.createdAt = Date.now();
+  this.updatedAt = Date.now();
+
+  this.useFirst2Cues = function(firstCue, secondCue) {
+    this.firstCue = firstCue;
+    this.secondCue = secondCue;
+    this.updatedAt = Date.now();
+  };
+  
+  this.useThirdCue = function(thirdCue) {
+    this.thirdCue = thirdCue;
+    this.update();
+  };
+
+  this.findIngredient = function(i) {
+    this.ingredient = i;
+    this.update();
+  };
+
+  this.admitDefeat = function() {
+    this.update();
+  };
+
+  this.update = function() {
+    this.updatedAt = Date.now();
+  };
+}
